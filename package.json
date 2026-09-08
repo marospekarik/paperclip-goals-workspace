@@ -1,0 +1,52 @@
+{
+  "name": "paperclip-goals-workspace",
+  "version": "1.0.0",
+  "description": "Paperclip plugin that turns Goals into a full goal-management workspace: owner and parent reassignment, FK-safe deletion, project and issue linking, and rolled-up progress",
+  "license": "MIT",
+  "type": "module",
+  "keywords": [
+    "paperclip",
+    "paperclipai",
+    "paperclip-plugin",
+    "goals",
+    "okr",
+    "agents"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/marospekarik/paperclip-goals-workspace.git"
+  },
+  "homepage": "https://github.com/marospekarik/paperclip-goals-workspace#readme",
+  "bugs": {
+    "url": "https://github.com/marospekarik/paperclip-goals-workspace/issues"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "NODE_ENV=production bun run build.ts",
+    "typecheck": "bunx tsc --noEmit",
+    "test": "bun test tests/*.spec.ts",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "bun run clean && bun run build && bun run typecheck && bun run test"
+  },
+  "dependencies": {
+    "@paperclipai/plugin-sdk": "2026.824.1"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/react": "^18.3.0",
+    "typescript": "^5.7.0"
+  },
+  "peerDependencies": {
+    "react": "^18.3.0"
+  },
+  "paperclipPlugin": {
+    "manifest": "./dist/manifest.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

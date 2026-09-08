@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.log
+.DS_Store
+.env
+.env.*
+.claude/
+
+# Internal dev artifact — not for the public repo or the npm tarball
+ISA.md
