@@ -59,6 +59,10 @@ export interface IssueSearchPayload {
   truncated: boolean;
 }
 
+export interface SingleIssuePayload {
+  issue: Issue | null;
+}
+
 function compactGoal(goal: Record<string, unknown>): Goal {
   return {
     id: String(goal.id),
@@ -228,6 +232,24 @@ const plugin = definePlugin({
       );
 
       const payload: GoalIssuesPayload = { goalId, direct, viaProjects };
+      return payload as unknown as Record<string, unknown>;
+    });
+
+    // -- One issue, by id ---------------------------------------------------
+    // The issue detail tab needs the goal of the exact issue being viewed. It
+    // must NOT read that out of `issue-search`, which is capped at SEARCH_LIMIT
+    // and ordered by nothing in particular: past that many issues in a company,
+    // the viewed issue simply would not be in the page, and the tab would report
+    // "not linked to a goal" for a task that is linked.
+    ctx.data.register("issue", async (params) => {
+      const input = params as Record<string, unknown>;
+      const companyId = requireCompanyId(input);
+      const issueId = String(input.issueId ?? "");
+      if (!issueId) throw new Error("issueId is required");
+      const row = await ctx.issues.get(issueId, companyId);
+      const payload: SingleIssuePayload = {
+        issue: row ? compactIssue(row as unknown as Record<string, unknown>) : null,
+      };
       return payload as unknown as Record<string, unknown>;
     });
 

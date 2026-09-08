@@ -367,10 +367,25 @@ describe("cleared-goal prediction — the host never leaves a task goalless (ISC
     expect(defaultCompanyGoal([goal("t", { level: "team" })])).toBeNull();
   });
 
-  test("clearing a task in a goal-linked project lands on the project's goal", () => {
+  test("clearing a task in a goal-linked project lands on the project's LEGACY goal", () => {
     const projects = [project("p", { goalId: "team" })];
     const result = predictClearedIssueGoal(issue("i", { projectId: "p", goalId: "team" }), goals, projects);
     expect(result).toEqual({ goalId: "team", reason: "project" });
+  });
+
+  test("a project linked only through the M2M array does NOT provide the fallback", () => {
+    // The host's getProjectDefaultGoalId selects projects.goal_id alone and
+    // never reads project_goals. This plugin's link dialog writes goalIds only,
+    // so this is the common shape — consulting the array here would predict a
+    // goal the host never picks.
+    const projects = [project("p", { goalId: null, goalIds: ["team"] })];
+    const result = predictClearedIssueGoal(issue("i", { projectId: "p", goalId: "team" }), goals, projects);
+    expect(result).toEqual({ goalId: "old-root", reason: "company-default" });
+  });
+
+  test("a projectless task ignores project links entirely", () => {
+    const projects = [project("p", { goalId: "team" })];
+    expect(predictClearedIssueGoal(issue("i", { goalId: "team" }), goals, projects).reason).toBe("company-default");
   });
 
   test("clearing a projectless task lands on the company default", () => {

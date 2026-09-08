@@ -536,7 +536,13 @@ export function predictClearedIssueGoal(
 ): { goalId: string | null; reason: "project" | "company-default" | "none" } {
   if (issue.projectId) {
     const project = projects.find((candidate) => candidate.id === issue.projectId);
-    const projectGoalId = project ? project.goalId ?? projectGoalIds(project)[0] ?? null : null;
+    // ONLY the legacy `projects.goal_id` column. The host's
+    // `getProjectDefaultGoalId` selects that single column and never reads the
+    // `project_goals` join table, so a project linked purely through the M2M
+    // array contributes nothing to this fallback — and that is the normal case
+    // here, because this plugin's own link dialog writes `goalIds` only.
+    // Consulting the array would predict a goal the host never picks.
+    const projectGoalId = project?.goalId ?? null;
     if (projectGoalId) return { goalId: projectGoalId, reason: "project" };
   }
   const fallback = defaultCompanyGoal(goals);

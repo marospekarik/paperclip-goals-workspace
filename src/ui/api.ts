@@ -116,6 +116,3 @@ export function updateIssueGoal(issueId: string, goalId: string | null): Promise
   return request<Issue>("PATCH", `/issues/${issueId}`, { goalId });
 }
 
-export function getIssue(issueId: string): Promise<Issue> {
-  return request<Issue>("GET", `/issues/${issueId}`);
-}

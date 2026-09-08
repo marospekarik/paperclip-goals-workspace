@@ -82,7 +82,12 @@ import {
   Spinner,
   StatusChip,
 } from "./parts.js";
-import type { GoalIssuesPayload, IssueSearchPayload, WorkspacePayload } from "../worker.js";
+import type {
+  GoalIssuesPayload,
+  IssueSearchPayload,
+  SingleIssuePayload,
+  WorkspacePayload,
+} from "../worker.js";
 
 // ---------------------------------------------------------------------------
 // Shared data hook
@@ -1296,14 +1301,15 @@ export function IssueGoalTab({ context }: PluginDetailTabProps) {
   const [error, setError] = useState<string | null>(null);
   const [override, setOverride] = useState<string | null | undefined>(undefined);
 
-  const search = usePluginData<IssueSearchPayload>("issue-search", { companyId, query: "" });
+  // Fetch THIS issue by id. Deriving it from the company-wide `issue-search`
+  // page would silently break past its result cap: the viewed issue would fall
+  // out of the page and the tab would claim it has no goal.
+  const current = usePluginData<SingleIssuePayload>("issue", { companyId, issueId });
   const goals = workspace.data?.goals ?? [];
   const rollups = workspace.data?.rollups ?? {};
   const agents = workspace.data?.agents ?? [];
 
-  // The workspace aggregate already carries every issue's goal; reading it from
-  // there keeps this tab on one source of truth with the rest of the plugin.
-  const known = search.data?.issues.find((issue) => issue.id === issueId) ?? null;
+  const known = current.data?.issue ?? null;
   const currentGoalId = override !== undefined ? override : known?.goalId ?? null;
   const goal = currentGoalId ? goals.find((candidate) => candidate.id === currentGoalId) ?? null : null;
   const index = useMemo(() => buildGoalIndex(goals), [goals]);
@@ -1322,7 +1328,7 @@ export function IssueGoalTab({ context }: PluginDetailTabProps) {
       const effective = updated?.goalId ?? null;
       setOverride(effective);
       workspace.refresh();
-      search.refresh();
+      current.refresh();
       const landed = effective ? goals.find((candidate) => candidate.id === effective) : null;
       if (nextGoalId === null && effective !== null) {
         toast({

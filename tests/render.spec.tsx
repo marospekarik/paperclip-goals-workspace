@@ -98,7 +98,7 @@ let hostContext: { companyId: string | null; entityId: string; entityType: strin
 };
 
 mock.module("@paperclipai/plugin-sdk/ui", () => ({
-  usePluginData: (key: string) => {
+  usePluginData: (key: string, params?: Record<string, unknown>) => {
     if (key === "workspace") return { data: workspacePayload(emptyMode), loading: false, error: null, refresh: () => {} };
     if (key === "goal-issues") {
       return {
@@ -108,6 +108,7 @@ mock.module("@paperclipai/plugin-sdk/ui", () => ({
         refresh: () => {},
       };
     }
+    if (key === "issue") return { data: { issue: issues.find((i) => i.id === (params as { issueId?: string })?.issueId) ?? null }, loading: false, error: null, refresh: () => {} };
     if (key === "issue-search") {
       return { data: { issues: emptyMode ? [] : issues, truncated: false }, loading: false, error: null, refresh: () => {} };
     }
@@ -180,6 +181,25 @@ describe("every mounted surface renders (ISC-31)", () => {
     // because the host re-derives a cleared goal.
     expect(html).toContain("falls back to");
     expect(html).toContain("Run the company without manual intervention");
+  });
+
+  test("the issue tab reports a LINKED task as linked", () => {
+    // Regression guard for the audit's blocking finding: the tab used to resolve
+    // the viewed issue out of a company-wide `issue-search` page capped at 50
+    // results, so past that many issues the viewed one fell out of the page and
+    // a linked task was reported as having no goal. It now fetches by id.
+    const html = renderToString(<surfaces.IssueGoalTab {...slotProps()} />);
+    expect(html).toContain("Fleet reliably picks up dropped tasks");
+    expect(html).not.toContain("This task is not linked to a goal");
+    expect(html).toContain("Open in Goals workspace");
+  });
+
+  test("the issue tab reports a genuinely unlinked task as unlinked", () => {
+    const previous = hostContext;
+    hostContext = { companyId: COMPANY, entityId: "no-such-issue", entityType: "issue" };
+    const html = renderToString(<surfaces.IssueGoalTab {...slotProps()} />);
+    expect(html).toContain("This task is not linked to a goal");
+    hostContext = previous;
   });
 
   test("the project tab renders linked goals and an add control", () => {
