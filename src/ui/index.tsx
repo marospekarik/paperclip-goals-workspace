@@ -27,7 +27,7 @@ import {
   ancestorChain,
   buildGoalIndex,
   computeDeleteImpact,
-  defaultCompanyGoal,
+  predictClearedIssueGoal,
   filterGoals,
   issueStatusGroups,
   planDetach,
@@ -365,6 +365,7 @@ export function GoalsWorkspacePage(_props: PluginPageProps) {
           }}
           onError={setError}
           setBusy={setBusy}
+          onRefresh={() => workspace.refresh()}
         />
       ) : null}
 
@@ -962,6 +963,7 @@ function DeleteGoalDialog({
   onDone,
   onError,
   setBusy,
+  onRefresh,
 }: {
   goal: Goal;
   companyId: string;
@@ -972,6 +974,8 @@ function DeleteGoalDialog({
   onDone: () => void;
   onError: (message: string) => void;
   setBusy: (value: boolean) => void;
+  /** Re-pull the workspace aggregate after a partially-applied detach. */
+  onRefresh: () => void;
 }) {
   const issues = usePluginData<GoalIssuesPayload>("goal-issues", { companyId, goalId: goal.id });
   const directIssues = issues.data?.direct ?? [];
@@ -1009,6 +1013,15 @@ function DeleteGoalDialog({
       await deleteGoal(goal.id);
       onDone();
     } catch (failure) {
+      // The detach writes are sequential and there is no rollback, so a
+      // mid-loop failure leaves some of them applied. Nothing is orphaned — the
+      // host logs `goal.updated` / `issue.updated` / `project.updated` for each
+      // one — but the dialog would otherwise keep showing the impact and plan it
+      // computed BEFORE the partial run, and a retry would re-issue writes that
+      // already succeeded. Refetch so the next attempt is planned against what
+      // is now true.
+      onRefresh();
+      issues.refresh();
       const message = errorText(failure);
       setLocalError(message);
       onError(message);
@@ -1299,18 +1312,24 @@ export function IssueGoalTab({ context }: PluginDetailTabProps) {
   const workspace = useWorkspace(companyId);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [override, setOverride] = useState<string | null | undefined>(undefined);
+  // The optimistic value from our own last write, carried until the refetch
+  // lands. It is STAMPED WITH THE ISSUE IT BELONGS TO: the host may keep this
+  // tab mounted while the operator moves from issue to issue, and an unstamped
+  // override would then show issue A's goal on issue B. Stamping self-corrects
+  // without an effect, which is what `InlineText` does for the same problem.
+  const [override, setOverride] = useState<{ issueId: string; goalId: string | null } | null>(null);
 
   // Fetch THIS issue by id. Deriving it from the company-wide `issue-search`
   // page would silently break past its result cap: the viewed issue would fall
   // out of the page and the tab would claim it has no goal.
   const current = usePluginData<SingleIssuePayload>("issue", { companyId, issueId });
   const goals = workspace.data?.goals ?? [];
+  const projects = workspace.data?.projects ?? [];
   const rollups = workspace.data?.rollups ?? {};
   const agents = workspace.data?.agents ?? [];
 
   const known = current.data?.issue ?? null;
-  const currentGoalId = override !== undefined ? override : known?.goalId ?? null;
+  const currentGoalId = override?.issueId === issueId ? override.goalId : known?.goalId ?? null;
   const goal = currentGoalId ? goals.find((candidate) => candidate.id === currentGoalId) ?? null : null;
   const index = useMemo(() => buildGoalIndex(goals), [goals]);
   const ancestors = goal ? ancestorChain(goal.id, index) : [];
@@ -1326,14 +1345,14 @@ export function IssueGoalTab({ context }: PluginDetailTabProps) {
       // default, so the effective value can differ from what was sent.
       const updated = await updateIssueGoal(issueId, nextGoalId);
       const effective = updated?.goalId ?? null;
-      setOverride(effective);
+      setOverride({ issueId, goalId: effective });
       workspace.refresh();
       current.refresh();
       const landed = effective ? goals.find((candidate) => candidate.id === effective) : null;
       if (nextGoalId === null && effective !== null) {
         toast({
           title: `Task fell back to “${landed?.title ?? "another goal"}”`,
-          body: "Paperclip derives a task's goal from its project or the company default — a task cannot have none.",
+          body: "Paperclip re-derives a cleared goal from the task's project, or from the company default when it has no project.",
           tone: "info",
           ttlMs: 6000,
         });
@@ -1347,10 +1366,14 @@ export function IssueGoalTab({ context }: PluginDetailTabProps) {
     }
   };
 
-  const clearFallback = useMemo(
-    () => (goals.length > 0 ? defaultCompanyGoal(goals) : null),
-    [goals],
-  );
+  // What clearing would actually do, for THIS issue. Not `defaultCompanyGoal`:
+  // an issue that belongs to a project never reaches the company default, so
+  // that label would promise a landing goal the host would not choose.
+  const clearFallback = useMemo(() => {
+    if (!known) return null;
+    const predicted = predictClearedIssueGoal(known, goals, projects);
+    return predicted.goalId ? goals.find((candidate) => candidate.id === predicted.goalId) ?? null : null;
+  }, [known, goals, projects]);
 
   return (
     <Root>

@@ -534,16 +534,26 @@ export function predictClearedIssueGoal(
   goals: Goal[],
   projects: Project[],
 ): { goalId: string | null; reason: "project" | "company-default" | "none" } {
+  // The host branches on whether the issue has a project AT ALL; it does not
+  // chain. `resolveFallbackGoalId` in issue-goal-fallback.js reads:
+  //
+  //   if (targetProjectId) return targetProjectGoalId ?? null;   // stop here
+  //   return input.defaultGoalId ?? null;
+  //
+  // So an issue that belongs to a project resolves to that project's goal or to
+  // NOTHING — the company default is unreachable for it. Only a projectless
+  // issue ever reaches the company default. Verified live 2026-09-08: clearing a
+  // task in a project whose legacy goal is null left `goalId` genuinely null,
+  // while clearing a projectless task landed it on the company root.
   if (issue.projectId) {
     const project = projects.find((candidate) => candidate.id === issue.projectId);
-    // ONLY the legacy `projects.goal_id` column. The host's
-    // `getProjectDefaultGoalId` selects that single column and never reads the
-    // `project_goals` join table, so a project linked purely through the M2M
-    // array contributes nothing to this fallback — and that is the normal case
-    // here, because this plugin's own link dialog writes `goalIds` only.
-    // Consulting the array would predict a goal the host never picks.
+    // ONLY the legacy `projects.goal_id` column. `getProjectDefaultGoalId`
+    // selects that single column and never reads the `project_goals` join
+    // table, so a project linked purely through the M2M array contributes
+    // nothing — and that is the normal case here, because this plugin's own
+    // link dialog writes `goalIds` only.
     const projectGoalId = project?.goalId ?? null;
-    if (projectGoalId) return { goalId: projectGoalId, reason: "project" };
+    return projectGoalId ? { goalId: projectGoalId, reason: "project" } : { goalId: null, reason: "none" };
   }
   const fallback = defaultCompanyGoal(goals);
   if (fallback) return { goalId: fallback.id, reason: "company-default" };

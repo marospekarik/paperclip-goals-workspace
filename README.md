@@ -69,22 +69,33 @@ So this plugin scans first and tells you exactly what is attached:
 then deletes. Cost and finance events cannot be detached through any API; if one of those
 holds a reference the plugin reports the block instead of pretending.
 
-## A task cannot have no goal
+## Clearing a task's goal does not always clear it
 
-`PATCH /api/issues/:id {goalId: null}` does not leave the column null. The host runs
-`resolveNextIssueGoalId` on every issue update, and an explicitly-null goal falls through
-to the issue's project's goal, then to the **company default goal** — the oldest active
-top-level `company` goal. Verified live: clearing a task's goal silently re-attached it to
-the company root.
+`PATCH /api/issues/:id {goalId: null}` does not simply null the column. The host runs
+`resolveNextIssueGoalId` on every issue update, and it **branches on whether the task has a
+project at all**:
 
-Two things follow, and the plugin does both:
+| The task | Clearing its goal yields |
+|---|---|
+| belongs to a project | that project's legacy `projects.goal_id`, or **nothing** if it is unset |
+| belongs to no project | the **company default goal** — the oldest active top-level `company` goal |
 
-- **"Clear goal" tells you where the task actually went.** The write is followed by a
-  read-back and the toast names the goal it landed on, instead of claiming an unlink that
-  did not happen. The issue tab's empty option is labelled with its real destination.
-- **Deleting a goal reassigns its tasks rather than clearing them.** A cleared goal could be
-  re-derived straight back to the goal being deleted, so the foreign key would still block
-  — *after* the other detach writes had already run. Tasks move to the deleted goal's parent,
+The branch does not fall through: a task inside a project never reaches the company
+default. And the project side reads the legacy single-goal column only — never the
+`project_goals` join table — so a project linked purely through the many-to-many array
+contributes nothing here. Both halves verified against a live instance.
+
+Three things follow, and the plugin does all three:
+
+- **The clear option tells you the truth for *that* task.** It is labelled `Clear (falls
+  back to “…”)` only when the task has no project, and plainly `No goal` when clearing
+  would really clear.
+- **The write is read back.** If the host lands the task somewhere you did not ask for, the
+  toast names the goal it actually went to rather than claiming an unlink that did not
+  happen.
+- **Deleting a goal reassigns its tasks rather than clearing them.** A cleared goal can be
+  re-derived straight back to the goal being deleted, so the foreign key would still block,
+  *after* the other detach writes had already run. Tasks move to the deleted goal's parent,
   or to the surviving company default. If a goal has tasks and is the only goal in the
   company, the delete is refused up front with an explanation.
 

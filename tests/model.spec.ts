@@ -373,14 +373,30 @@ describe("cleared-goal prediction — the host never leaves a task goalless (ISC
     expect(result).toEqual({ goalId: "team", reason: "project" });
   });
 
-  test("a project linked only through the M2M array does NOT provide the fallback", () => {
-    // The host's getProjectDefaultGoalId selects projects.goal_id alone and
-    // never reads project_goals. This plugin's link dialog writes goalIds only,
-    // so this is the common shape — consulting the array here would predict a
-    // goal the host never picks.
+  test("having a project at all cuts off the company default (ISC-35)", () => {
+    // The host BRANCHES, it does not chain:
+    //   if (targetProjectId) return targetProjectGoalId ?? null;   // stop
+    //   return defaultGoalId ?? null;
+    // So an issue in a project whose legacy goal is null really does clear to
+    // nothing. Verified live 2026-09-08 against a project with goalId: null.
     const projects = [project("p", { goalId: null, goalIds: ["team"] })];
     const result = predictClearedIssueGoal(issue("i", { projectId: "p", goalId: "team" }), goals, projects);
-    expect(result).toEqual({ goalId: "old-root", reason: "company-default" });
+    expect(result).toEqual({ goalId: null, reason: "none" });
+  });
+
+  test("an M2M-only link never supplies the project's goal", () => {
+    // getProjectDefaultGoalId selects projects.goal_id alone and never reads
+    // project_goals — and this plugin's own link dialog writes goalIds only, so
+    // this is the common shape.
+    const projects = [project("p", { goalId: null, goalIds: ["old-root"] })];
+    expect(predictClearedIssueGoal(issue("i", { projectId: "p" }), goals, projects).goalId).toBeNull();
+  });
+
+  test("an issue whose project is missing from the payload still cuts off", () => {
+    expect(predictClearedIssueGoal(issue("i", { projectId: "gone" }), goals, [])).toEqual({
+      goalId: null,
+      reason: "none",
+    });
   });
 
   test("a projectless task ignores project links entirely", () => {

@@ -174,13 +174,23 @@ describe("every mounted surface renders (ISC-31)", () => {
     hostContext = previous;
   });
 
-  test("the issue tab offers every goal plus an honest fallback label", () => {
+  test("a task IN A PROJECT is told that clearing really clears", () => {
+    // i1 belongs to p1, whose legacy `goalId` is null. The host branches on
+    // project presence, so clearing this task's goal yields null — the company
+    // default is unreachable for it. The label must not promise otherwise.
     const html = renderToString(<surfaces.IssueGoalTab {...slotProps()} />);
     expect(html).toContain("Goal");
-    // The empty option must name where the task actually lands, never "No goal",
-    // because the host re-derives a cleared goal.
+    expect(html).toContain(">No goal<");
+    expect(html).not.toContain("falls back to");
+  });
+
+  test("a PROJECTLESS task is told which goal clearing falls back to", () => {
+    const previous = hostContext;
+    hostContext = { companyId: COMPANY, entityId: "i3", entityType: "issue" };
+    const html = renderToString(<surfaces.IssueGoalTab {...slotProps()} />);
     expect(html).toContain("falls back to");
     expect(html).toContain("Run the company without manual intervention");
+    hostContext = previous;
   });
 
   test("the issue tab reports a LINKED task as linked", () => {
