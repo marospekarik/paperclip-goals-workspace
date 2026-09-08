@@ -146,7 +146,11 @@ export function GoalsWorkspacePage(_props: PluginPageProps) {
 
   const workspace = useWorkspace(companyId);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // `null` means "nobody has touched the tree yet", which renders with the roots
+  // open. Deriving that instead of seeding it from an effect matters: an effect
+  // does not run on the first paint, so the tree would flash fully collapsed
+  // before expanding.
+  const [expandedOverride, setExpandedOverride] = useState<Set<string> | null>(null);
   const [filter, setFilter] = useState<GoalFilter>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -165,14 +169,12 @@ export function GoalsWorkspacePage(_props: PluginPageProps) {
     if (searchGoalId && searchGoalId !== selectedId) setSelectedId(searchGoalId);
   }, [searchGoalId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Roots open on first load so an untouched workspace shows structure, not a
-  // single collapsed line.
-  const goalCount = goals.length;
-  useEffect(() => {
-    if (goalCount === 0 || expanded.size > 0) return;
-    const index = buildGoalIndex(goals);
-    setExpanded(new Set(index.roots.map((goal) => goal.id)));
-  }, [goalCount]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Roots open until the operator collapses something, so an untouched
+  // workspace shows structure rather than a single line.
+  const expanded = useMemo(
+    () => expandedOverride ?? new Set(buildGoalIndex(goals).roots.map((goal) => goal.id)),
+    [expandedOverride, goals],
+  );
 
   const selected = selectedId ? goals.find((goal) => goal.id === selectedId) ?? null : null;
   const filterResult = useMemo(() => filterGoals(goals, filter), [goals, filter]);
@@ -185,14 +187,17 @@ export function GoalsWorkspacePage(_props: PluginPageProps) {
     [navigation],
   );
 
-  const toggle = useCallback((goalId: string) => {
-    setExpanded((current) => {
-      const next = new Set(current);
-      if (next.has(goalId)) next.delete(goalId);
-      else next.add(goalId);
-      return next;
-    });
-  }, []);
+  const toggle = useCallback(
+    (goalId: string) => {
+      setExpandedOverride(() => {
+        const next = new Set(expanded);
+        if (next.has(goalId)) next.delete(goalId);
+        else next.add(goalId);
+        return next;
+      });
+    },
+    [expanded],
+  );
 
   /** Run a write, surface its failure in one place, refresh on success. */
   const run = useCallback(
