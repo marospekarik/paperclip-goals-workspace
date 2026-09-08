@@ -509,6 +509,52 @@ export function computeDeleteImpact(
   };
 }
 
+/**
+ * Where an issue's goal actually lands when you ask the host to clear it.
+ *
+ * `PATCH /api/issues/:id {goalId: null}` does NOT leave the column null. The
+ * host runs `resolveNextIssueGoalId` on every update, and an explicitly-null
+ * goal falls through to the issue's project's goal, then to the company's
+ * default goal — the oldest `level: "company"`, `status: "active"`, top-level
+ * goal (`getDefaultCompanyGoal`). Verified live 2026-09-08: clearing a task's
+ * goal silently re-attached it to the company root goal.
+ *
+ * Two things follow, and both are load-bearing:
+ *
+ * 1. An "unlink" control that clears the column is a placebo. The write
+ *    succeeds and the task reappears under another goal. The UI has to read the
+ *    effective goal back and say where it went.
+ * 2. Detaching issues before deleting a goal cannot use `null`, because the
+ *    re-derived goal may be the very goal being deleted — the foreign key would
+ *    still block, *after* the detach writes had already run. Issues must be
+ *    reassigned to an explicit surviving goal instead.
+ */
+export function predictClearedIssueGoal(
+  issue: Issue,
+  goals: Goal[],
+  projects: Project[],
+): { goalId: string | null; reason: "project" | "company-default" | "none" } {
+  if (issue.projectId) {
+    const project = projects.find((candidate) => candidate.id === issue.projectId);
+    const projectGoalId = project ? project.goalId ?? projectGoalIds(project)[0] ?? null : null;
+    if (projectGoalId) return { goalId: projectGoalId, reason: "project" };
+  }
+  const fallback = defaultCompanyGoal(goals);
+  if (fallback) return { goalId: fallback.id, reason: "company-default" };
+  return { goalId: null, reason: "none" };
+}
+
+/** The host's `getDefaultCompanyGoal`: oldest active company-level root, then looser fallbacks. */
+export function defaultCompanyGoal(goals: Goal[]): Goal | null {
+  const byAge = (a: Goal, b: Goal) => String(a.createdAt ?? "").localeCompare(String(b.createdAt ?? ""));
+  const companyLevel = goals.filter((goal) => goal.level === "company");
+  const activeRoots = companyLevel.filter((goal) => goal.status === "active" && goal.parentId === null);
+  if (activeRoots.length > 0) return [...activeRoots].sort(byAge)[0]!;
+  const anyRoots = companyLevel.filter((goal) => goal.parentId === null);
+  if (anyRoots.length > 0) return [...anyRoots].sort(byAge)[0]!;
+  return companyLevel.length > 0 ? [...companyLevel].sort(byAge)[0]! : null;
+}
+
 export interface ProjectDetachPatch {
   projectId: string;
   /** Present only when the legacy column pointed at the goal. */
@@ -520,10 +566,24 @@ export interface ProjectDetachPatch {
 export interface DetachPlan {
   /** Children to reparent, and where to. */
   reparent: { goalId: string; parentId: string | null }[];
-  /** Issues whose `goalId` is cleared. */
-  clearIssues: string[];
+  /**
+   * Issues to move, and the goal they move to.
+   *
+   * Never `null`: an explicitly-null goal is re-derived by the host and can land
+   * right back on the goal being deleted (see `predictClearedIssueGoal`), which
+   * would leave the foreign key blocking after the other detach writes had
+   * already run.
+   */
+  moveIssues: { issueId: string; goalId: string }[];
   /** Projects whose goal links are rewritten. */
   projects: ProjectDetachPatch[];
+  /** The goal issues are moved to, resolved once for the whole plan. */
+  issueTargetGoalId: string | null;
+  /**
+   * Why this goal cannot be deleted at all, or null when the plan is runnable.
+   * Set when issues are attached and no surviving goal exists to move them to.
+   */
+  blocked: string | null;
   /** Total write calls the plan will make, before the delete itself. */
   writeCount: number;
 }
@@ -534,6 +594,9 @@ export interface DetachPlan {
  * Children are lifted to the deleted goal's own parent rather than orphaned to
  * top level, so removing a middle goal collapses the tree instead of scattering
  * it — the behaviour every file manager and issue tracker already teaches.
+ * Attached issues follow the same rule for the same reason, and because they
+ * *cannot* simply be cleared: the host re-derives a null goal, possibly back to
+ * the goal under deletion.
  */
 export function planDetach(impact: DeleteImpact, goals: Goal[], projects: Project[]): DetachPlan {
   const goal = goals.find((candidate) => candidate.id === impact.goalId);
@@ -543,7 +606,27 @@ export function planDetach(impact: DeleteImpact, goals: Goal[], projects: Projec
     goalId: child.id,
     parentId: inheritedParentId,
   }));
-  const clearIssues = impact.issues.map((issue) => issue.id);
+
+  // Prefer the deleted goal's parent; otherwise any surviving goal that is not
+  // itself about to be re-parented out from under the issues.
+  const survivors = goals.filter((candidate) => candidate.id !== impact.goalId);
+  const issueTargetGoalId =
+    (inheritedParentId && survivors.some((candidate) => candidate.id === inheritedParentId)
+      ? inheritedParentId
+      : null) ??
+    defaultCompanyGoal(survivors)?.id ??
+    survivors[0]?.id ??
+    null;
+
+  const moveIssues =
+    issueTargetGoalId === null
+      ? []
+      : impact.issues.map((issue) => ({ issueId: issue.id, goalId: issueTargetGoalId }));
+
+  const blocked =
+    impact.issues.length > 0 && issueTargetGoalId === null
+      ? "This is the only goal, and Paperclip cannot leave a task without one. Create another goal first, or move these tasks yourself."
+      : null;
 
   const touchedProjects = new Map<string, ProjectDetachPatch>();
   for (const project of [...impact.legacyProjects, ...impact.cascadingProjects]) {
@@ -559,9 +642,11 @@ export function planDetach(impact: DeleteImpact, goals: Goal[], projects: Projec
   const projectPatches = [...touchedProjects.values()];
   return {
     reparent,
-    clearIssues,
+    moveIssues,
     projects: projectPatches,
-    writeCount: reparent.length + clearIssues.length + projectPatches.length,
+    issueTargetGoalId,
+    blocked,
+    writeCount: reparent.length + moveIssues.length + projectPatches.length,
   };
 }
 

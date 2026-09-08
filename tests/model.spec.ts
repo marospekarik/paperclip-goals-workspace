@@ -5,8 +5,10 @@ import {
   buildGoalIndex,
   computeDeleteImpact,
   computeRollups,
+  defaultCompanyGoal,
   descendantIds,
   filterGoals,
+  predictClearedIssueGoal,
   issueStatusGroups,
   planDetach,
   progressLabel,
@@ -283,7 +285,44 @@ describe("delete impact (ISC-6, ISC-7)", () => {
     const impact = computeDeleteImpact("target", goals, projects, issues);
     const plan = planDetach(impact, goals, projects);
     expect(plan.reparent).toEqual([{ goalId: "child", parentId: "root" }]);
-    expect(plan.clearIssues).toEqual(["i1"]);
+    expect(plan.blocked).toBeNull();
+  });
+
+  test("issues MOVE to a surviving goal, never to null (ISC-29)", () => {
+    // A null goalId is re-derived by the host and can land back on the goal
+    // being deleted, so the plan must name an explicit target.
+    const impact = computeDeleteImpact("target", goals, projects, issues);
+    const plan = planDetach(impact, goals, projects);
+    expect(plan.issueTargetGoalId).toBe("root");
+    expect(plan.moveIssues).toEqual([{ issueId: "i1", goalId: "root" }]);
+    for (const move of plan.moveIssues) expect(move.goalId).not.toBeNull();
+  });
+
+  test("a top-level goal's issues fall to the surviving company default", () => {
+    const flat = [
+      goal("victim", { level: "company", status: "active", createdAt: "2026-01-01" }),
+      goal("survivor", { level: "company", status: "active", createdAt: "2026-02-01" }),
+    ];
+    const linked = [issue("i", { goalId: "victim" })];
+    const plan = planDetach(computeDeleteImpact("victim", flat, [], linked), flat, []);
+    expect(plan.issueTargetGoalId).toBe("survivor");
+    expect(plan.blocked).toBeNull();
+  });
+
+  test("deleting the only goal while tasks are attached is blocked, not attempted (ISC-7)", () => {
+    const only = [goal("solo", { level: "company", status: "active" })];
+    const linked = [issue("i", { goalId: "solo" })];
+    const plan = planDetach(computeDeleteImpact("solo", only, [], linked), only, []);
+    expect(plan.issueTargetGoalId).toBeNull();
+    expect(plan.moveIssues).toEqual([]);
+    expect(plan.blocked).toContain("only goal");
+  });
+
+  test("a goal with no issues is never blocked, even as the last goal", () => {
+    const only = [goal("solo", { level: "company", status: "active" })];
+    const plan = planDetach(computeDeleteImpact("solo", only, [], []), only, []);
+    expect(plan.blocked).toBeNull();
+    expect(plan.writeCount).toBe(0);
   });
 
   test("deleting a top-level goal lifts its children to top level", () => {
@@ -306,6 +345,47 @@ describe("delete impact (ISC-6, ISC-7)", () => {
 
     expect(plan.projects.find((entry) => entry.projectId === "unrelated")).toBeUndefined();
     expect(plan.writeCount).toBe(4);
+  });
+});
+
+describe("cleared-goal prediction — the host never leaves a task goalless (ISC-30)", () => {
+  const goals = [
+    goal("old-root", { level: "company", status: "active", parentId: null, createdAt: "2026-01-01" }),
+    goal("new-root", { level: "company", status: "active", parentId: null, createdAt: "2026-05-01" }),
+    goal("team", { level: "team", status: "active", parentId: "old-root" }),
+  ];
+
+  test("the company default is the OLDEST active company-level root", () => {
+    expect(defaultCompanyGoal(goals)?.id).toBe("old-root");
+  });
+
+  test("it falls back to any company-level root, then any company-level goal", () => {
+    const noneActive = [goal("planned-root", { level: "company", status: "planned", parentId: null })];
+    expect(defaultCompanyGoal(noneActive)?.id).toBe("planned-root");
+    const nested = [goal("nested", { level: "company", status: "planned", parentId: "x" })];
+    expect(defaultCompanyGoal(nested)?.id).toBe("nested");
+    expect(defaultCompanyGoal([goal("t", { level: "team" })])).toBeNull();
+  });
+
+  test("clearing a task in a goal-linked project lands on the project's goal", () => {
+    const projects = [project("p", { goalId: "team" })];
+    const result = predictClearedIssueGoal(issue("i", { projectId: "p", goalId: "team" }), goals, projects);
+    expect(result).toEqual({ goalId: "team", reason: "project" });
+  });
+
+  test("clearing a projectless task lands on the company default", () => {
+    expect(predictClearedIssueGoal(issue("i", { goalId: "team" }), goals, [])).toEqual({
+      goalId: "old-root",
+      reason: "company-default",
+    });
+  });
+
+  test("with no company-level goal at all, a clear really does clear", () => {
+    const teamOnly = [goal("team", { level: "team" })];
+    expect(predictClearedIssueGoal(issue("i", { goalId: "team" }), teamOnly, [])).toEqual({
+      goalId: null,
+      reason: "none",
+    });
   });
 });
 

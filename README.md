@@ -69,6 +69,25 @@ So this plugin scans first and tells you exactly what is attached:
 then deletes. Cost and finance events cannot be detached through any API; if one of those
 holds a reference the plugin reports the block instead of pretending.
 
+## A task cannot have no goal
+
+`PATCH /api/issues/:id {goalId: null}` does not leave the column null. The host runs
+`resolveNextIssueGoalId` on every issue update, and an explicitly-null goal falls through
+to the issue's project's goal, then to the **company default goal** — the oldest active
+top-level `company` goal. Verified live: clearing a task's goal silently re-attached it to
+the company root.
+
+Two things follow, and the plugin does both:
+
+- **"Clear goal" tells you where the task actually went.** The write is followed by a
+  read-back and the toast names the goal it landed on, instead of claiming an unlink that
+  did not happen. The issue tab's empty option is labelled with its real destination.
+- **Deleting a goal reassigns its tasks rather than clearing them.** A cleared goal could be
+  re-derived straight back to the goal being deleted, so the foreign key would still block
+  — *after* the other detach writes had already run. Tasks move to the deleted goal's parent,
+  or to the surviving company default. If a goal has tasks and is the only goal in the
+  company, the delete is refused up front with an explanation.
+
 ## Install
 
 ```bash

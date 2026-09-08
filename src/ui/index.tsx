@@ -27,6 +27,7 @@ import {
   ancestorChain,
   buildGoalIndex,
   computeDeleteImpact,
+  defaultCompanyGoal,
   filterGoals,
   issueStatusGroups,
   planDetach,
@@ -295,7 +296,24 @@ export function GoalsWorkspacePage(_props: PluginPageProps) {
                     }),
                   )
                 }
-                onUnlinkIssue={(issue) => run("Task unlinked", () => updateIssueGoal(issue.id, null))}
+                onUnlinkIssue={(issue) =>
+                  run("Task goal cleared", async () => {
+                    // The host never leaves a task without a goal: an explicit
+                    // null is re-derived to the task's project goal, then to the
+                    // company default. Read the result back and say where it
+                    // actually went rather than claiming it was unlinked.
+                    const updated = await updateIssueGoal(issue.id, null);
+                    if (updated?.goalId && updated.goalId !== selected.id) {
+                      const landed = goals.find((candidate) => candidate.id === updated.goalId);
+                      toast({
+                        title: `Task moved to “${landed?.title ?? "another goal"}”`,
+                        body: "Paperclip derives a task's goal from its project or the company default — a task cannot have none.",
+                        tone: "info",
+                        ttlMs: 6000,
+                      });
+                    }
+                  })
+                }
               />
             ) : (
               <EmptyDetail hasGoals={goals.length > 0} />
@@ -956,15 +974,22 @@ function DeleteGoalDialog({
   );
   const plan = useMemo(() => planDetach(impact, goals, projects), [impact, goals, projects]);
   const inheritedParent = goal.parentId ? goals.find((candidate) => candidate.id === goal.parentId) : null;
+  const issueTarget = plan.issueTargetGoalId
+    ? goals.find((candidate) => candidate.id === plan.issueTargetGoalId) ?? null
+    : null;
 
   const remove = async () => {
+    if (plan.blocked) {
+      setLocalError(plan.blocked);
+      return;
+    }
     setBusy(true);
     setLocalError(null);
     try {
-      // Detach first: children lift to this goal's own parent, tasks lose their
-      // goal, projects lose the link. Only then is the row deletable.
+      // Detach first: children lift to this goal's own parent, tasks move to a
+      // surviving goal, projects lose the link. Only then is the row deletable.
       for (const move of plan.reparent) await updateGoal(move.goalId, { parentId: move.parentId });
-      for (const issueId of plan.clearIssues) await updateIssueGoal(issueId, null);
+      for (const move of plan.moveIssues) await updateIssueGoal(move.issueId, move.goalId);
       for (const patch of plan.projects) {
         await updateProjectGoals(patch.projectId, {
           goalIds: patch.goalIds,
@@ -997,7 +1022,7 @@ function DeleteGoalDialog({
           <button
             type="button"
             className="gw-btn gw-btn--danger-solid"
-            disabled={busy || loading || (!impact.safe && !confirmed)}
+            disabled={busy || loading || plan.blocked !== null || (!impact.safe && !confirmed)}
             onClick={remove}
           >
             {busy ? "Deleting…" : impact.safe ? "Delete goal" : `Detach ${plan.writeCount} and delete`}
@@ -1031,8 +1056,9 @@ function DeleteGoalDialog({
               ) : null}
               {impact.issues.length > 0 ? (
                 <li>
-                  <strong>{impact.issues.length}</strong> task{impact.issues.length === 1 ? "" : "s"} lose their goal
-                  link (the tasks themselves are kept)
+                  <strong>{impact.issues.length}</strong> task{impact.issues.length === 1 ? "" : "s"} move to{" "}
+                  {issueTarget ? `“${issueTarget.title}”` : "another goal"} — Paperclip cannot leave a task without a
+                  goal, so they are reassigned rather than cleared
                 </li>
               ) : null}
               {impact.legacyProjects.length + impact.cascadingProjects.length > 0 ? (
@@ -1043,10 +1069,14 @@ function DeleteGoalDialog({
                 </li>
               ) : null}
             </ul>
-            <label className="gw-check">
-              <input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />
-              <span>I understand these links are removed permanently.</span>
-            </label>
+            {plan.blocked ? (
+              <div className="gw-callout gw-callout--warn">{plan.blocked}</div>
+            ) : (
+              <label className="gw-check">
+                <input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />
+                <span>I understand these links are removed permanently.</span>
+              </label>
+            )}
           </>
         )}
         <ErrorNote error={localError} />
@@ -1280,17 +1310,36 @@ export function IssueGoalTab({ context }: PluginDetailTabProps) {
     setPending(true);
     setError(null);
     try {
-      await updateIssueGoal(issueId, nextGoalId);
-      setOverride(nextGoalId);
+      // Trust the server's answer, not the request. Clearing a goal is
+      // re-derived by the host to the task's project goal or the company
+      // default, so the effective value can differ from what was sent.
+      const updated = await updateIssueGoal(issueId, nextGoalId);
+      const effective = updated?.goalId ?? null;
+      setOverride(effective);
       workspace.refresh();
       search.refresh();
-      toast({ title: nextGoalId ? "Task linked to goal" : "Goal cleared", tone: "success", ttlMs: 2200 });
+      const landed = effective ? goals.find((candidate) => candidate.id === effective) : null;
+      if (nextGoalId === null && effective !== null) {
+        toast({
+          title: `Task fell back to “${landed?.title ?? "another goal"}”`,
+          body: "Paperclip derives a task's goal from its project or the company default — a task cannot have none.",
+          tone: "info",
+          ttlMs: 6000,
+        });
+      } else {
+        toast({ title: effective ? "Task linked to goal" : "Goal cleared", tone: "success", ttlMs: 2200 });
+      }
     } catch (failure) {
       setError(errorText(failure));
     } finally {
       setPending(false);
     }
   };
+
+  const clearFallback = useMemo(
+    () => (goals.length > 0 ? defaultCompanyGoal(goals) : null),
+    [goals],
+  );
 
   return (
     <Root>
@@ -1305,7 +1354,9 @@ export function IssueGoalTab({ context }: PluginDetailTabProps) {
               disabled={pending || workspace.loading}
               onChange={(event) => assign(event.target.value === "" ? null : event.target.value)}
             >
-              <option value="">No goal</option>
+              <option value="">
+                {clearFallback ? `Clear (falls back to “${clearFallback.title}”)` : "No goal"}
+              </option>
               {goals.map((candidate) => (
                 <option key={candidate.id} value={candidate.id}>
                   {candidate.title}
