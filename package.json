@@ -28,7 +28,7 @@
   "scripts": {
     "build": "NODE_ENV=production bun run build.ts",
     "typecheck": "bunx tsc --noEmit",
-    "test": "bun test tests/*.spec.ts",
+    "test": "bun test tests/",
     "clean": "rm -rf dist",
     "prepublishOnly": "bun run clean && bun run build && bun run typecheck && bun run test"
   },
