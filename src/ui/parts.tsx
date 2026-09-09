@@ -68,8 +68,8 @@ export const IconChevron = () => (
     <path d="m9 18 6-6-6-6" />
   </svg>
 );
-export const IconTarget = () => (
-  <svg {...ICON_PROPS}>
+export const IconTarget = ({ size = 14 }: { size?: number }) => (
+  <svg {...ICON_PROPS} width={size} height={size}>
     <circle cx="12" cy="12" r="9" />
     <circle cx="12" cy="12" r="5" />
     <circle cx="12" cy="12" r="1.5" />

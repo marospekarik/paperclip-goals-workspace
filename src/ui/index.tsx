@@ -131,7 +131,7 @@ export function GoalsNavItem() {
   return (
     <Root>
       <a {...navigation.linkProps(pageHref())} className="gw-nav">
-        <IconTarget />
+        <IconTarget size={16} />
         <span>Goals</span>
       </a>
     </Root>

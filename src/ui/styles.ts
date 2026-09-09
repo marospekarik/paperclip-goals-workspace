@@ -275,7 +275,7 @@ export const STYLE = `
 .gw-check input { margin-top: 2px; flex-shrink: 0; }
 
 .gw-nav {
-  display: flex; align-items: center; gap: 8px; padding: 6px 8px;
+  display: flex; align-items: center; gap: 10px; margin: 0 8px; padding: 6px 8px;
   border-radius: 6px; text-decoration: none; color: inherit; font-size: 13px;
 }
 @media (hover: hover) and (pointer: fine) { .gw-nav:hover { background: var(--gw-hover); } }
