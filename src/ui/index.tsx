@@ -240,7 +240,7 @@ function WorkspaceSplitHandle({
 export function GoalsNavItem() {
   const navigation = useHostNavigation();
   return (
-    <Root>
+    <Root className="gw-nav-rail">
       <a {...navigation.linkProps(pageHref())} className="gw-nav">
         <IconTarget size={16} />
         <span>Goals</span>

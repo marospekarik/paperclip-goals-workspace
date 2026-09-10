@@ -307,11 +307,22 @@ export const STYLE = `
 .gw-check { display: flex; align-items: flex-start; gap: 8px; padding: 6px 2px; cursor: pointer; }
 .gw-check input { margin-top: 2px; flex-shrink: 0; }
 
+/* The host renders this nav entry inside its left sidebar, which the operator
+   can collapse to a ~64px icon rail. The host's own nav items (Projects,
+   Skills…) drop their label in that state; mirror it with a container query so
+   the Goals entry also becomes just its icon instead of a clipped label. */
+.gw-nav-rail { container-type: inline-size; }
+
 .gw-nav {
   display: flex; align-items: center; gap: 10px; margin: 0 8px; padding: 6px 8px;
   border-radius: 6px; text-decoration: none; color: inherit; font-size: 13px;
 }
 @media (hover: hover) and (pointer: fine) { .gw-nav:hover { background: var(--gw-hover); } }
+
+@container (max-width: 120px) {
+  .gw-nav { margin: 0; padding: 6px; justify-content: center; gap: 0; }
+  .gw-nav span { width: 0; min-width: 0; overflow: hidden; white-space: nowrap; }
+}
 
 .gw-spin { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--gw-track); border-top-color: var(--gw-accent); border-radius: 50%; animation: gw-spin .7s linear infinite; }
 @keyframes gw-spin { to { transform: rotate(360deg); } }
