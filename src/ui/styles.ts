@@ -83,16 +83,42 @@ export const STYLE = `
 
 /* ---------------------------------------------------------------- layout -- */
 
-.gw-shell { display: grid; grid-template-columns: minmax(260px, 340px) 1fr; min-height: 0; }
+.gw-shell {
+  display: grid;
+  grid-template-columns: minmax(260px, var(--gw-tree-width, 340px)) 1px minmax(320px, 1fr);
+  min-height: 0;
+}
 .gw-shell > * { min-width: 0; }
 .gw-tree-pane {
-  border-right: 1px solid var(--gw-border);
   display: flex; flex-direction: column; min-height: 0;
 }
-.gw-detail-pane { min-height: 0; overflow: auto; }
+.gw-splitter {
+  position: relative; z-index: 2; width: 15px; min-width: 15px; margin-left: -7px;
+  cursor: col-resize; touch-action: none; outline: none;
+}
+.gw-splitter::before {
+  content: ""; position: absolute; inset: 0 7px; background: var(--gw-border);
+  transition: inset .12s ease, background-color .12s ease;
+}
+.gw-splitter-grip {
+  position: absolute; top: 50%; left: 50%; width: 3px; height: 34px;
+  background: var(--gw-faint); border-radius: 999px;
+  transform: translate(-50%, -50%); opacity: 0;
+}
+.gw-splitter:hover::before, .gw-splitter:focus-visible::before, .gw-splitter--active::before {
+  inset: 0 6px; background: var(--gw-accent);
+}
+.gw-splitter:hover .gw-splitter-grip,
+.gw-splitter:focus-visible .gw-splitter-grip,
+.gw-splitter--active .gw-splitter-grip { opacity: .7; }
+.gw-detail-pane {
+  container-type: inline-size; container-name: gw-detail;
+  min-height: 0; overflow: auto;
+}
 @container gw (max-width: 720px) {
   .gw-shell { grid-template-columns: 1fr; }
-  .gw-tree-pane { border-right: none; border-bottom: 1px solid var(--gw-border); }
+  .gw-tree-pane { border-bottom: 1px solid var(--gw-border); }
+  .gw-splitter { display: none; }
   .gw-tree-scroll { max-height: 320px; }
 }
 
@@ -208,6 +234,12 @@ export const STYLE = `
 .gw-metric-label { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--gw-faint); }
 
 /* -------------------------------------------------------------- structure -- */
+
+.gw-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.gw-detail-grid > .gw-section { min-width: 0; }
+@container gw-detail (max-width: 660px) {
+  .gw-detail-grid { grid-template-columns: 1fr; }
+}
 
 .gw-section { border: 1px solid var(--gw-border); }
 .gw-section-head {

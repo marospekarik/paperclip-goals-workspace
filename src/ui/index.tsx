@@ -11,7 +11,7 @@
  * aggregates it invalidated.
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   useHostContext,
   useHostLocation,
@@ -122,6 +122,116 @@ function errorText(error: unknown): string {
   return String(error);
 }
 
+export const DEFAULT_TREE_WIDTH = 340;
+export const MIN_TREE_WIDTH = 260;
+export const MIN_DETAIL_WIDTH = 320;
+const SPLIT_STEP = 24;
+const SPLIT_STORAGE_KEY = "paperclip-goals-workspace:tree-width";
+
+/** Keep both panes usable while allowing the goal tree to grow with the page. */
+export function clampTreeWidth(proposed: number, shellWidth: number): number {
+  const maximum = Math.max(MIN_TREE_WIDTH, shellWidth - MIN_DETAIL_WIDTH);
+  return Math.min(Math.max(proposed, MIN_TREE_WIDTH), maximum);
+}
+
+function WorkspaceSplitHandle({
+  shellRef,
+  width,
+  onWidthChange,
+}: {
+  shellRef: React.RefObject<HTMLDivElement | null>;
+  width: number;
+  onWidthChange: (width: number) => void;
+}) {
+  const widthRef = useRef(width);
+  const [dragging, setDragging] = useState(false);
+  const [shellWidth, setShellWidth] = useState(0);
+
+  useEffect(() => {
+    widthRef.current = width;
+  }, [width]);
+
+  useEffect(() => {
+    const shell = shellRef.current;
+    if (!shell) return;
+    const update = () => {
+      const nextShellWidth = shell.getBoundingClientRect().width;
+      setShellWidth(nextShellWidth);
+      onWidthChange(clampTreeWidth(widthRef.current, nextShellWidth));
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(shell);
+    return () => observer.disconnect();
+  }, [shellRef, onWidthChange]);
+
+  const resizeAt = useCallback((clientX: number) => {
+    const shell = shellRef.current;
+    if (!shell) return;
+    const bounds = shell.getBoundingClientRect();
+    onWidthChange(clampTreeWidth(clientX - bounds.left, bounds.width));
+  }, [shellRef, onWidthChange]);
+
+  useEffect(() => {
+    if (!dragging) return;
+    const move = (event: PointerEvent) => {
+      event.preventDefault();
+      resizeAt(event.clientX);
+    };
+    const stop = () => setDragging(false);
+    const previousCursor = document.body.style.cursor;
+    const previousSelection = document.body.style.userSelect;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    window.addEventListener("pointermove", move, { passive: false });
+    window.addEventListener("pointerup", stop);
+    window.addEventListener("pointercancel", stop);
+    window.addEventListener("blur", stop);
+    return () => {
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousSelection;
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+      window.removeEventListener("pointercancel", stop);
+      window.removeEventListener("blur", stop);
+    };
+  }, [dragging, resizeAt]);
+
+  const maximum = Math.max(MIN_TREE_WIDTH, shellWidth - MIN_DETAIL_WIDTH);
+
+  return (
+    <div
+      className={dragging ? "gw-splitter gw-splitter--active" : "gw-splitter"}
+      role="separator"
+      aria-label="Resize goal list"
+      aria-orientation="vertical"
+      aria-valuemin={MIN_TREE_WIDTH}
+      aria-valuemax={Math.round(maximum)}
+      aria-valuenow={Math.round(width)}
+      tabIndex={0}
+      title="Drag to resize · Double-click to reset"
+      onDoubleClick={() => onWidthChange(clampTreeWidth(DEFAULT_TREE_WIDTH, shellWidth))}
+      onPointerDown={(event) => {
+        event.preventDefault();
+        setDragging(true);
+        resizeAt(event.clientX);
+      }}
+      onKeyDown={(event) => {
+        let next = width;
+        if (event.key === "ArrowLeft") next -= SPLIT_STEP;
+        else if (event.key === "ArrowRight") next += SPLIT_STEP;
+        else if (event.key === "Home") next = MIN_TREE_WIDTH;
+        else if (event.key === "End") next = maximum;
+        else return;
+        event.preventDefault();
+        onWidthChange(clampTreeWidth(next, shellWidth));
+      }}
+    >
+      <span className="gw-splitter-grip" aria-hidden="true" />
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // sidebar
 // ---------------------------------------------------------------------------
@@ -160,6 +270,28 @@ export function GoalsWorkspacePage(_props: PluginPageProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dialog, setDialog] = useState<null | { kind: "create"; parentId: string | null } | { kind: "delete" } | { kind: "link-projects" } | { kind: "link-issues" }>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
+  const [treeWidth, setTreeWidth] = useState(DEFAULT_TREE_WIDTH);
+  const [splitReady, setSplitReady] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = Number(window.localStorage.getItem(SPLIT_STORAGE_KEY));
+      if (Number.isFinite(saved) && saved > 0) setTreeWidth(saved);
+    } catch {
+      // Storage can be unavailable in privacy-restricted webviews. Resizing still works.
+    }
+    setSplitReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!splitReady) return;
+    try {
+      window.localStorage.setItem(SPLIT_STORAGE_KEY, String(Math.round(treeWidth)));
+    } catch {
+      // Keep the in-memory split when storage is unavailable.
+    }
+  }, [splitReady, treeWidth]);
 
   const goals = workspace.data?.goals ?? [];
   const projects = workspace.data?.projects ?? [];
@@ -236,7 +368,11 @@ export function GoalsWorkspacePage(_props: PluginPageProps) {
 
   return (
     <Root>
-      <div className="gw-shell">
+      <div
+        className="gw-shell"
+        ref={shellRef}
+        style={{ "--gw-tree-width": `${treeWidth}px` } as React.CSSProperties}
+      >
         <div className="gw-tree-pane">
           <div className="gw-pane-pad gw-stack-sm">
             <div className="gw-row">
@@ -278,6 +414,8 @@ export function GoalsWorkspacePage(_props: PluginPageProps) {
             )}
           </div>
         </div>
+
+        <WorkspaceSplitHandle shellRef={shellRef} width={treeWidth} onWidthChange={setTreeWidth} />
 
         <div className="gw-detail-pane">
           <div className="gw-pane-pad gw-stack">
@@ -594,50 +732,90 @@ function GoalDetail(props: GoalDetailProps) {
         </div>
       ) : null}
 
-      <Section title="Properties">
-        <div>
-          <Field label="Status">
-            <EnumSelect
-              values={STATUS_VALUES}
-              value={goal.status}
-              label="Goal status"
-              disabled={busy}
-              onChange={(status) => props.onPatch({ status })}
-            />
-          </Field>
-          <Field label="Level">
-            <EnumSelect
-              values={LEVEL_VALUES}
-              value={goal.level}
-              label="Goal level"
-              disabled={busy}
-              onChange={(level) => props.onPatch({ level })}
-            />
-          </Field>
-          <Field label="Owner">
-            <AgentSelect
-              agents={agents}
-              value={goal.ownerAgentId}
-              disabled={busy}
-              onChange={(ownerAgentId) => props.onPatch({ ownerAgentId })}
-            />
-            {owner ? (
-              <a className="gw-link" {...navigation.linkProps(hostAgentHref(owner.urlKey ?? null, owner.id))}>
-                open
-              </a>
-            ) : null}
-          </Field>
-          <Field label="Parent">
-            <ParentSelect
-              goals={goals}
-              goalId={goal.id}
-              value={goal.parentId}
-              disabled={busy}
-              onChange={(parentId) => props.onPatch({ parentId })}
-            />
-          </Field>
-        </div>
-      </Section>
+      <div className="gw-detail-grid">
+        <Section title="Properties">
+          <div>
+            <Field label="Status">
+              <EnumSelect
+                values={STATUS_VALUES}
+                value={goal.status}
+                label="Goal status"
+                disabled={busy}
+                onChange={(status) => props.onPatch({ status })}
+              />
+            </Field>
+            <Field label="Level">
+              <EnumSelect
+                values={LEVEL_VALUES}
+                value={goal.level}
+                label="Goal level"
+                disabled={busy}
+                onChange={(level) => props.onPatch({ level })}
+              />
+            </Field>
+            <Field label="Owner">
+              <AgentSelect
+                agents={agents}
+                value={goal.ownerAgentId}
+                disabled={busy}
+                onChange={(ownerAgentId) => props.onPatch({ ownerAgentId })}
+              />
+              {owner ? (
+                <a className="gw-link" {...navigation.linkProps(hostAgentHref(owner.urlKey ?? null, owner.id))}>
+                  open
+                </a>
+              ) : null}
+            </Field>
+            <Field label="Parent">
+              <ParentSelect
+                goals={goals}
+                goalId={goal.id}
+                value={goal.parentId}
+                disabled={busy}
+                onChange={(parentId) => props.onPatch({ parentId })}
+              />
+            </Field>
+          </div>
+        </Section>
+
+        <Section
+          title="Projects"
+          count={linkedProjects.length}
+          flush
+          action={
+            <button type="button" className="gw-btn gw-btn--xs" disabled={busy} onClick={props.onLinkProjects}>
+              <IconPlus /> Link project
+            </button>
+          }
+        >
+          {linkedProjects.length === 0 ? (
+            <p className="gw-empty">No linked projects.</p>
+          ) : (
+            linkedProjects.map((project) => (
+              <div key={project.id} className="gw-list-row">
+                <a
+                  className="gw-link gw-truncate"
+                  style={{ flex: 1 }}
+                  {...navigation.linkProps(hostProjectHref(project.urlKey ?? null, project.id))}
+                >
+                  {project.name}
+                </a>
+                <span className="gw-chip gw-chip--count">{project.status.replace(/_/g, " ")}</span>
+                <button
+                  type="button"
+                  className="gw-btn gw-btn--ghost gw-btn--xs gw-reveal"
+                  disabled={busy}
+                  title="Unlink project"
+                  aria-label={`Unlink ${project.name}`}
+                  onClick={() => props.onUnlinkProject(project)}
+                >
+                  <IconUnlink />
+                </button>
+              </div>
+            ))
+          )}
+        </Section>
+      </div>
 
       <Section
         title="Sub-goals"
@@ -675,44 +853,6 @@ function GoalDetail(props: GoalDetailProps) {
               </div>
             );
           })
-        )}
-      </Section>
-
-      <Section
-        title="Projects"
-        count={linkedProjects.length}
-        flush
-        action={
-          <button type="button" className="gw-btn gw-btn--xs" disabled={busy} onClick={props.onLinkProjects}>
-            <IconPlus /> Link project
-          </button>
-        }
-      >
-        {linkedProjects.length === 0 ? (
-          <p className="gw-empty">No linked projects.</p>
-        ) : (
-          linkedProjects.map((project) => (
-            <div key={project.id} className="gw-list-row">
-              <a
-                className="gw-link gw-truncate"
-                style={{ flex: 1 }}
-                {...navigation.linkProps(hostProjectHref(project.urlKey ?? null, project.id))}
-              >
-                {project.name}
-              </a>
-              <span className="gw-chip gw-chip--count">{project.status.replace(/_/g, " ")}</span>
-              <button
-                type="button"
-                className="gw-btn gw-btn--ghost gw-btn--xs gw-reveal"
-                disabled={busy}
-                title="Unlink project"
-                aria-label={`Unlink ${project.name}`}
-                onClick={() => props.onUnlinkProject(project)}
-              >
-                <IconUnlink />
-              </button>
-            </div>
-          ))
         )}
       </Section>
 

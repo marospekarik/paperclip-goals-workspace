@@ -157,6 +157,15 @@ describe("every mounted surface renders (ISC-31)", () => {
     expect(html).toContain("progressbar");
     expect(html).toContain("New goal");
     expect(html).toContain("Search goals");
+    expect(html).toContain('role="separator"');
+    expect(html).toContain('aria-label="Resize goal list"');
+    expect(html).toContain("--gw-tree-width:340px");
+  });
+
+  test("the dynamic split preserves usable minimum widths", () => {
+    expect(surfaces.clampTreeWidth(100, 1200)).toBe(surfaces.MIN_TREE_WIDTH);
+    expect(surfaces.clampTreeWidth(620, 1200)).toBe(620);
+    expect(surfaces.clampTreeWidth(1000, 900)).toBe(900 - surfaces.MIN_DETAIL_WIDTH);
   });
 
   test("the workspace page survives a company with no goals at all", () => {
@@ -226,6 +235,9 @@ describe("every mounted surface renders (ISC-31)", () => {
     const html = renderToString(<surfaces.GoalsNavItem />);
     expect(html).toContain(".gw-root");
     expect(html).toContain(".dark .gw-root");
+    expect(html).toContain(".gw-detail-grid");
+    expect(html).toContain("repeat(2, minmax(0, 1fr))");
+    expect(html).toContain("@container gw-detail (max-width: 660px)");
     expect(html).not.toContain("prefers-color-scheme: dark");
   });
 });
