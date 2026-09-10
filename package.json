@@ -1,6 +1,6 @@
 {
   "name": "paperclip-goals-workspace",
-  "version": "1.0.4",
+  "version": "1.1.0",
   "description": "Paperclip plugin that turns Goals into a full goal-management workspace: owner and parent reassignment, FK-safe deletion, project and issue linking, and rolled-up progress",
   "license": "MIT",
   "type": "module",

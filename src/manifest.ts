@@ -20,7 +20,7 @@ import { PAGE_ROUTE } from "./routes.js";
 const manifest: PaperclipPluginManifestV1 = {
   id: "ordillect.goals-workspace",
   apiVersion: 1,
-  version: "1.0.4",
+  version: "1.1.0",
   displayName: "Goals Workspace",
   description:
     "A complete goal-management workspace: reassign owners and parents, link projects and " +

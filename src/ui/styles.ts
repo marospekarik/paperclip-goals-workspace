@@ -265,6 +265,7 @@ export const STYLE = `
 @container gw (max-width: 520px) { .gw-field { grid-template-columns: 1fr; gap: 3px; } }
 .gw-field-label { font-size: 11px; color: var(--gw-faint); text-transform: uppercase; letter-spacing: .04em; }
 
+.gw-owner-open { color: var(--gw-accent); text-decoration: none; margin-top: 6px; align-self: flex-start; }
 .gw-link { color: var(--gw-accent); text-decoration: none; }
 @media (hover: hover) and (pointer: fine) { .gw-link:hover { text-decoration: underline; } }
 

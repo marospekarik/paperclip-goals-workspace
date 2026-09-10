@@ -64,6 +64,7 @@ import {
   ErrorNote,
   Field,
   GoalTree,
+  IconExternalLink,
   IconPlus,
   IconSearch,
   IconTarget,
@@ -761,8 +762,12 @@ function GoalDetail(props: GoalDetailProps) {
                 onChange={(ownerAgentId) => props.onPatch({ ownerAgentId })}
               />
               {owner ? (
-                <a className="gw-link" {...navigation.linkProps(hostAgentHref(owner.urlKey ?? null, owner.id))}>
-                  open
+                <a
+                  className="gw-btn gw-btn--xs gw-btn--ghost gw-owner-open"
+                  aria-label={`Open ${owner.name}`}
+                  {...navigation.linkProps(hostAgentHref(owner.urlKey ?? null, owner.id))}
+                >
+                  <IconExternalLink /> Open
                 </a>
               ) : null}
             </Field>

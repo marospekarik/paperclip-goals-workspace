@@ -96,6 +96,11 @@ export const IconSearch = () => (
     <path d="m20 20-3.5-3.5" />
   </svg>
 );
+export const IconExternalLink = () => (
+  <svg {...ICON_PROPS} width={13} height={13}>
+    <path d="M15 3h6v6M10 14 21 3M18 13v8H3V6h8" />
+  </svg>
+);
 
 // ---------------------------------------------------------------------------
 // Chips and bars
