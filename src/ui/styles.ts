@@ -319,8 +319,10 @@ export const STYLE = `
 }
 @media (hover: hover) and (pointer: fine) { .gw-nav:hover { background: var(--gw-hover); } }
 
+.gw-nav svg { display: block; flex-shrink: 0; }
+
 @container (max-width: 120px) {
-  .gw-nav { margin: 0; padding: 6px; justify-content: center; gap: 0; }
+  .gw-nav { margin: 0; padding: 6px 0; justify-content: center; gap: 0; }
   .gw-nav span { width: 0; min-width: 0; overflow: hidden; white-space: nowrap; }
 }
 
