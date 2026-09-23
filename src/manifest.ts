@@ -1,5 +1,6 @@
 import type { PaperclipPluginManifestV1 } from "@paperclipai/plugin-sdk";
 
+import packageJson from "../package.json";
 import { PAGE_ROUTE } from "./routes.js";
 
 /**
@@ -20,7 +21,7 @@ import { PAGE_ROUTE } from "./routes.js";
 const manifest: PaperclipPluginManifestV1 = {
   id: "ordillect.goals-workspace",
   apiVersion: 1,
-  version: "1.2.0",
+  version: packageJson.version,
   displayName: "Goals Workspace",
   description:
     "A complete goal-management workspace: reassign owners and parents, link projects and " +

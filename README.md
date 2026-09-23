@@ -105,6 +105,14 @@ Three things follow, and the plugin does all three:
 paperclipai plugin install paperclip-goals-workspace
 ```
 
+Use the unversioned package name to install the latest published release.
+Paperclip currently looks for a literal directory named
+`paperclip-goals-workspace@<version>` after an npm install with `@<version>`,
+although npm creates `node_modules/paperclip-goals-workspace`. This produces
+"Package directory not found after installation". The unversioned command
+above installs the latest release. Installing plugins also requires instance
+admin access.
+
 or from a checkout:
 
 ```bash
