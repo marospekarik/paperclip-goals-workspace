@@ -74,6 +74,7 @@ import {
   IssueStatusChip,
   LEVEL_VALUES,
   LevelChip,
+  MarkdownDescriptionEditor,
   Modal,
   ParentSelect,
   ProgressBar,
@@ -701,13 +702,6 @@ function GoalDetail(props: GoalDetailProps) {
 
       <div className="gw-stack-sm">
         <InlineText value={goal.title} ariaLabel="Goal title" onCommit={(title) => props.onPatch({ title })} />
-        <InlineText
-          value={goal.description ?? ""}
-          ariaLabel="Goal description"
-          placeholder="Add a description…"
-          multiline
-          onCommit={(description) => props.onPatch({ description: description || null })}
-        />
       </div>
 
       {rollup ? (
@@ -733,7 +727,15 @@ function GoalDetail(props: GoalDetailProps) {
         </div>
       ) : null}
 
-      <div className="gw-detail-grid">
+      <div className="gw-detail-main">
+        <Section title="Description">
+          <MarkdownDescriptionEditor
+            key={goal.id}
+            value={goal.description ?? ""}
+            onCommit={(description) => props.onPatch({ description: description || null })}
+          />
+        </Section>
+
         <Section title="Properties">
           <div>
             <Field label="Status">
@@ -782,7 +784,9 @@ function GoalDetail(props: GoalDetailProps) {
             </Field>
           </div>
         </Section>
+      </div>
 
+      <div className="gw-detail-grid">
         <Section
           title="Projects"
           count={linkedProjects.length}

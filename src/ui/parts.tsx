@@ -6,7 +6,8 @@
  * near-identical variants that drift.
  */
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MarkdownEditor } from "@paperclipai/plugin-sdk/ui";
 
 import {
   GOAL_LEVELS,
@@ -400,6 +401,132 @@ export function InlineText({
   ) : (
     <input className="gw-title-input" {...shared} />
   );
+}
+
+// ---------------------------------------------------------------------------
+// Markdown editing
+// ---------------------------------------------------------------------------
+
+/**
+ * The goal description, edited in Paperclip's own Markdown editor: the one
+ * behind the agent Instructions tab, exposed to plugins as the SDK's
+ * `MarkdownEditor`. It is a real rich-text editor, so headings, lists and
+ * links lay out and place the caret natively instead of through a textarea
+ * painted over a preview.
+ *
+ * It follows the Instructions tab's contract:
+ * - The caller keys it by goal, so switching goals remounts the editor
+ *   instead of re-syncing a live one mid-edit.
+ * - `onChange` counts only after the user has typed, pasted, dropped or
+ *   clicked inside it. The editor emits a normalised copy of its source on
+ *   mount, and that must not read as an edit.
+ * - It commits on blur, on Cmd/Ctrl+Enter, and on unmount if a draft is
+ *   still unsaved, and only when the text actually changed.
+ */
+export function MarkdownDescriptionEditor({
+  value,
+  onCommit,
+  placeholder = "Add a description...",
+  ariaLabel = "Goal description",
+}: {
+  value: string;
+  onCommit: (next: string) => void;
+  placeholder?: string;
+  ariaLabel?: string;
+}) {
+  const [draft, setDraft] = useState(value);
+  const draftRef = useRef(value);
+  const committed = useRef(value);
+  const touched = useRef(false);
+  const onCommitRef = useRef(onCommit);
+  onCommitRef.current = onCommit;
+
+  const update = (next: string) => {
+    draftRef.current = next;
+    setDraft(next);
+  };
+
+  // A server value replaces the draft only while there is no unsaved edit.
+  useEffect(() => {
+    const dirty = draftRef.current.trim() !== committed.current.trim();
+    committed.current = value;
+    if (!dirty) update(value);
+  }, [value]);
+
+  const commit = useCallback(() => {
+    touched.current = false;
+    const next = draftRef.current.trim();
+    if (next === committed.current.trim()) return;
+    committed.current = next;
+    onCommitRef.current(next);
+  }, []);
+
+  useEffect(() => commit, [commit]);
+
+  const markTouched = useCallback(() => {
+    touched.current = true;
+  }, []);
+
+  const fallback = (
+    <textarea
+      className="gw-desc-input"
+      value={draft}
+      placeholder={placeholder}
+      aria-label={ariaLabel}
+      onChange={(event) => {
+        touched.current = true;
+        update(event.target.value);
+      }}
+      onBlur={commit}
+    />
+  );
+
+  return (
+    <div
+      className="gw-md-editor"
+      aria-label={ariaLabel}
+      onBeforeInputCapture={markTouched}
+      onDropCapture={markTouched}
+      onInput={markTouched}
+      onKeyDownCapture={markTouched}
+      onPasteCapture={markTouched}
+      onPointerDownCapture={markTouched}
+    >
+      <HostEditorBoundary fallback={fallback}>
+        <MarkdownEditor
+          value={draft}
+          onChange={(next) => {
+            if (touched.current) update(next ?? "");
+          }}
+          onBlur={commit}
+          onSubmit={commit}
+          placeholder={placeholder}
+          className="gw-md-host"
+          contentClassName="gw-md-content"
+        />
+      </HostEditorBoundary>
+    </div>
+  );
+}
+
+/**
+ * Falls back to a plain textarea if the host does not provide the shared
+ * editor, so an older or stripped host degrades to editable text instead of a
+ * blank Goals page.
+ */
+class HostEditorBoundary extends React.Component<
+  { fallback: React.ReactNode; children: React.ReactNode },
+  { failed: boolean }
+> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
 }
 
 // ---------------------------------------------------------------------------

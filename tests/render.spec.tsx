@@ -124,6 +124,9 @@ mock.module("@paperclipai/plugin-sdk/ui", () => ({
   }),
   useHostLocation: () => ({ pathname: "/goals-workspace", search: "", hash: "" }),
   usePluginToast: () => () => null,
+  MarkdownEditor: ({ value, contentClassName }: { value: string; contentClassName?: string }) => (
+    <div data-host-markdown-editor className={contentClassName}>{value}</div>
+  ),
 }));
 
 const originalFetch = globalThis.fetch;
@@ -135,6 +138,7 @@ afterAll(() => {
 });
 
 const surfaces = await import("../src/ui/index.js");
+const parts = await import("../src/ui/parts.js");
 
 type SlotProps = Parameters<typeof surfaces.IssueGoalTab>[0];
 const slotProps = () => ({ context: hostContext }) as unknown as SlotProps;
@@ -160,6 +164,19 @@ describe("every mounted surface renders (ISC-31)", () => {
     expect(html).toContain('role="separator"');
     expect(html).toContain('aria-label="Resize goal list"');
     expect(html).toContain("--gw-tree-width:340px");
+  });
+
+  test("the goal description uses the host's shared Markdown editor", () => {
+    const html = renderToString(
+      <parts.MarkdownDescriptionEditor value={"### Title\n\nBody"} onCommit={() => {}} />,
+    );
+    expect(html).toContain("gw-md-editor");
+    expect(html).toContain("data-host-markdown-editor");
+    expect(html).toContain("gw-md-content");
+    expect(html).toContain("### Title");
+    // The old overlay (a transparent textarea painted over a preview) is gone.
+    expect(html).not.toContain("gw-md-preview");
+    expect(html).not.toContain("<textarea");
   });
 
   test("the dynamic split preserves usable minimum widths", () => {
@@ -235,6 +252,9 @@ describe("every mounted surface renders (ISC-31)", () => {
     const html = renderToString(<surfaces.GoalsNavItem />);
     expect(html).toContain(".gw-root");
     expect(html).toContain(".dark .gw-root");
+    expect(html).toContain(".gw-detail-main");
+    expect(html).toContain("minmax(0, 2fr) minmax(230px, 1fr)");
+    expect(html).toContain(".gw-md-editor");
     expect(html).toContain(".gw-detail-grid");
     expect(html).toContain("repeat(2, minmax(0, 1fr))");
     expect(html).toContain("@container gw-detail (max-width: 660px)");

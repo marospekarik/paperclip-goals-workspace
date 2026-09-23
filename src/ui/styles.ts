@@ -235,10 +235,11 @@ export const STYLE = `
 
 /* -------------------------------------------------------------- structure -- */
 
+.gw-detail-main { display: grid; grid-template-columns: minmax(0, 2fr) minmax(230px, 1fr); gap: 10px; align-items: start; }
 .gw-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.gw-detail-grid > .gw-section { min-width: 0; }
+.gw-detail-main > .gw-section, .gw-detail-grid > .gw-section { min-width: 0; }
 @container gw-detail (max-width: 660px) {
-  .gw-detail-grid { grid-template-columns: 1fr; }
+  .gw-detail-main, .gw-detail-grid { grid-template-columns: 1fr; }
 }
 
 .gw-section { border: 1px solid var(--gw-border); }
@@ -283,6 +284,24 @@ export const STYLE = `
   resize: vertical; line-height: 1.55; font-family: inherit;
 }
 .gw-desc-input:hover, .gw-desc-input:focus { border-color: var(--gw-border-strong); color: inherit; }
+
+.gw-md-editor {
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: var(--gw-surface);
+  min-width: 0;
+}
+.gw-md-editor:hover, .gw-md-editor:focus-within { border-color: var(--gw-border-strong); background: transparent; }
+.gw-md-editor .gw-md-host { min-width: 0; overflow: hidden; }
+.gw-md-editor .gw-md-content {
+  min-height: 116px;
+  max-width: 100%;
+  padding: 8px 10px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  outline: none;
+}
 
 /* ------------------------------------------------------------------ modal -- */
 
