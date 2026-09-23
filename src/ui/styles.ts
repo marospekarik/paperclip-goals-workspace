@@ -236,10 +236,9 @@ export const STYLE = `
 /* -------------------------------------------------------------- structure -- */
 
 .gw-detail-main { display: grid; grid-template-columns: minmax(0, 2fr) minmax(230px, 1fr); gap: 10px; align-items: start; }
-.gw-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.gw-detail-main > .gw-section, .gw-detail-grid > .gw-section { min-width: 0; }
+.gw-detail-main > * { min-width: 0; }
 @container gw-detail (max-width: 660px) {
-  .gw-detail-main, .gw-detail-grid { grid-template-columns: 1fr; }
+  .gw-detail-main { grid-template-columns: 1fr; }
 }
 
 .gw-section { border: 1px solid var(--gw-border); }

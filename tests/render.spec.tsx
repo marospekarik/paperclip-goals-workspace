@@ -255,8 +255,7 @@ describe("every mounted surface renders (ISC-31)", () => {
     expect(html).toContain(".gw-detail-main");
     expect(html).toContain("minmax(0, 2fr) minmax(230px, 1fr)");
     expect(html).toContain(".gw-md-editor");
-    expect(html).toContain(".gw-detail-grid");
-    expect(html).toContain("repeat(2, minmax(0, 1fr))");
+    expect(html).toContain(".gw-stack {");
     expect(html).toContain("@container gw-detail (max-width: 660px)");
     expect(html).not.toContain("prefers-color-scheme: dark");
   });

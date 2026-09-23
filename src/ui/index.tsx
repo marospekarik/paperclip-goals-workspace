@@ -736,94 +736,94 @@ function GoalDetail(props: GoalDetailProps) {
           />
         </Section>
 
-        <Section title="Properties">
-          <div>
-            <Field label="Status">
-              <EnumSelect
-                values={STATUS_VALUES}
-                value={goal.status}
-                label="Goal status"
-                disabled={busy}
-                onChange={(status) => props.onPatch({ status })}
-              />
-            </Field>
-            <Field label="Level">
-              <EnumSelect
-                values={LEVEL_VALUES}
-                value={goal.level}
-                label="Goal level"
-                disabled={busy}
-                onChange={(level) => props.onPatch({ level })}
-              />
-            </Field>
-            <Field label="Owner">
-              <AgentSelect
-                agents={agents}
-                value={goal.ownerAgentId}
-                disabled={busy}
-                onChange={(ownerAgentId) => props.onPatch({ ownerAgentId })}
-              />
-              {owner ? (
-                <a
-                  className="gw-btn gw-btn--xs gw-btn--ghost gw-owner-open"
-                  aria-label={`Open ${owner.name}`}
-                  {...navigation.linkProps(hostAgentHref(owner.urlKey ?? null, owner.id))}
-                >
-                  <IconExternalLink /> Open
-                </a>
-              ) : null}
-            </Field>
-            <Field label="Parent">
-              <ParentSelect
-                goals={goals}
-                goalId={goal.id}
-                value={goal.parentId}
-                disabled={busy}
-                onChange={(parentId) => props.onPatch({ parentId })}
-              />
-            </Field>
-          </div>
-        </Section>
-      </div>
-
-      <div className="gw-detail-grid">
-        <Section
-          title="Projects"
-          count={linkedProjects.length}
-          flush
-          action={
-            <button type="button" className="gw-btn gw-btn--xs" disabled={busy} onClick={props.onLinkProjects}>
-              <IconPlus /> Link project
-            </button>
-          }
-        >
-          {linkedProjects.length === 0 ? (
-            <p className="gw-empty">No linked projects.</p>
-          ) : (
-            linkedProjects.map((project) => (
-              <div key={project.id} className="gw-list-row">
-                <a
-                  className="gw-link gw-truncate"
-                  style={{ flex: 1 }}
-                  {...navigation.linkProps(hostProjectHref(project.urlKey ?? null, project.id))}
-                >
-                  {project.name}
-                </a>
-                <span className="gw-chip gw-chip--count">{project.status.replace(/_/g, " ")}</span>
-                <button
-                  type="button"
-                  className="gw-btn gw-btn--ghost gw-btn--xs gw-reveal"
+        <div className="gw-stack">
+          <Section title="Properties">
+            <div>
+              <Field label="Status">
+                <EnumSelect
+                  values={STATUS_VALUES}
+                  value={goal.status}
+                  label="Goal status"
                   disabled={busy}
-                  title="Unlink project"
-                  aria-label={`Unlink ${project.name}`}
-                  onClick={() => props.onUnlinkProject(project)}
-                >
-                  <IconUnlink />
-                </button>
-              </div>
-            ))
-          )}
-        </Section>
+                  onChange={(status) => props.onPatch({ status })}
+                />
+              </Field>
+              <Field label="Level">
+                <EnumSelect
+                  values={LEVEL_VALUES}
+                  value={goal.level}
+                  label="Goal level"
+                  disabled={busy}
+                  onChange={(level) => props.onPatch({ level })}
+                />
+              </Field>
+              <Field label="Owner">
+                <AgentSelect
+                  agents={agents}
+                  value={goal.ownerAgentId}
+                  disabled={busy}
+                  onChange={(ownerAgentId) => props.onPatch({ ownerAgentId })}
+                />
+                {owner ? (
+                  <a
+                    className="gw-btn gw-btn--xs gw-btn--ghost gw-owner-open"
+                    aria-label={`Open ${owner.name}`}
+                    {...navigation.linkProps(hostAgentHref(owner.urlKey ?? null, owner.id))}
+                  >
+                    <IconExternalLink /> Open
+                  </a>
+                ) : null}
+              </Field>
+              <Field label="Parent">
+                <ParentSelect
+                  goals={goals}
+                  goalId={goal.id}
+                  value={goal.parentId}
+                  disabled={busy}
+                  onChange={(parentId) => props.onPatch({ parentId })}
+                />
+              </Field>
+            </div>
+          </Section>
+
+          <Section
+            title="Projects"
+            count={linkedProjects.length}
+            flush
+            action={
+              <button type="button" className="gw-btn gw-btn--xs" disabled={busy} onClick={props.onLinkProjects}>
+                <IconPlus /> Link project
+              </button>
+            }
+          >
+            {linkedProjects.length === 0 ? (
+              <p className="gw-empty">No linked projects.</p>
+            ) : (
+              linkedProjects.map((project) => (
+                <div key={project.id} className="gw-list-row">
+                  <a
+                    className="gw-link gw-truncate"
+                    style={{ flex: 1 }}
+                    {...navigation.linkProps(hostProjectHref(project.urlKey ?? null, project.id))}
+                  >
+                    {project.name}
+                  </a>
+                  <span className="gw-chip gw-chip--count">{project.status.replace(/_/g, " ")}</span>
+                  <button
+                    type="button"
+                    className="gw-btn gw-btn--ghost gw-btn--xs gw-reveal"
+                    disabled={busy}
+                    title="Unlink project"
+                    aria-label={`Unlink ${project.name}`}
+                    onClick={() => props.onUnlinkProject(project)}
+                  >
+                    <IconUnlink />
+                  </button>
+                </div>
+              ))
+            )}
+          </Section>
+        </div>
       </div>
 
       <Section
