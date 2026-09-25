@@ -6,16 +6,7 @@ Everything the `paperclipai goal` CLI can do — reassign an owner, reparent, de
 projects, link tasks — plus the two things neither surface had: **progress rolled up
 through the tree**, and **a delete that does not throw a database error at you**.
 
-```
-┌ Goals ──────────────────────┬──────────────────────────────────────────┐
-│ 🔍 search   status ▾ level ▾ │  Run 11e without manual intervention     │
-│                              │  ████████████░░░░░░░  63%  12/19 tasks   │
-│ ▾ Run 11e without…  63% ███  │                                          │
-│   ▾ Fleet reliably…  80% ███ │  Status ▾   Level ▾   Owner ▾   Parent ▾ │
-│     · Recovery act…   0% ░░░ │  Sub-goals · Projects · Tasks            │
-│   · Visual surfaces… 20% █░░ │  Danger zone → Delete goal               │
-└──────────────────────────────┴──────────────────────────────────────────┘
-```
+![Goals Workspace showing the 11e goal tree, task progress, Markdown description, owner, projects, and sub-goals](screenshots/goals-workspace.png)
 
 ## What it adds
 
@@ -101,6 +92,17 @@ Three things follow, and the plugin does all three:
 
 ## Install
 
+In the Paperclip UI:
+
+1. Open **Settings → Plugins** and click **Install Plugin**.
+2. Enter **`paperclip-goals-workspace`** and submit. This is the npm package name,
+   which matches this repository's name; a GitHub URL is not needed.
+3. Once the plugin is ready, open a company and select **Goals** in its sidebar.
+
+Installing plugins requires instance admin access.
+
+Or use the CLI:
+
 ```bash
 paperclipai plugin install paperclip-goals-workspace
 ```
@@ -109,11 +111,10 @@ Use the unversioned package name to install the latest published release.
 Paperclip currently looks for a literal directory named
 `paperclip-goals-workspace@<version>` after an npm install with `@<version>`,
 although npm creates `node_modules/paperclip-goals-workspace`. This produces
-"Package directory not found after installation". The unversioned command
-above installs the latest release. Installing plugins also requires instance
-admin access.
+"Package directory not found after installation". The unversioned name
+above installs the latest release.
 
-or from a checkout:
+Or install from a checkout:
 
 ```bash
 bun install && bun run build
